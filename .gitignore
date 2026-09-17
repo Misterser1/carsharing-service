@@ -1,0 +1,18 @@
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Playwright MCP artefacts (не часть проекта)
+.playwright-mcp/
+
+# Python (для будущих лабораторных)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

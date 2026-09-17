@@ -1,0 +1,14 @@
+%% Статусы доступности автомобиля (vehicles.status)
+stateDiagram-v2
+    direction LR
+    [*] --> AVAILABLE : оператор добавил авто
+    AVAILABLE --> RESERVED : водитель забронировал
+    RESERVED --> AVAILABLE : отмена / истёк резерв (20 мин)
+    RESERVED --> RENTED : старт аренды (unlock)
+    RENTED --> AVAILABLE : завершение аренды (lock)
+    AVAILABLE --> MAINTENANCE : оператор отправил на ТО / заправку
+    RENTED --> MAINTENANCE : инцидент / поломка
+    MAINTENANCE --> AVAILABLE : ТО завершено
+    AVAILABLE --> DECOMMISSIONED : списание
+    MAINTENANCE --> DECOMMISSIONED : списание
+    DECOMMISSIONED --> [*]

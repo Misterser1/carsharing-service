@@ -1,0 +1,47 @@
+@startuml c4-container
+' C4 Level 2 — Container
+' Сервис аренды автомобилей (Carsharing / Rental API), вариант 5
+!include <C4/C4_Container>
+
+title Диаграмма контейнеров (C4 Level 2) — Сервис аренды автомобилей
+
+Person(driver, "Водитель", "Клиент сервиса: ищет авто, бронирует, арендует и оплачивает поездки")
+Person(operator, "Оператор автопарка", "Сотрудник: управляет автомобилями, тарифами, верифицирует водителей, разбирает инциденты")
+
+System_Boundary(platform, "Carsharing Platform") {
+    Container(mobile, "Мобильное приложение", "React Native", "Карта свободных авто, бронирование, старт / завершение аренды, история поездок и платежей")
+    Container(web, "Веб-панель оператора", "React SPA", "Управление автопарком и тарифами, верификация ВУ, ТО, инциденты, аналитика")
+
+    Container(api, "Backend API", "Python 3.12, FastAPI", "REST/JSON API. Бизнес-логика: жизненный цикл аренды, расчёт стоимости, блокировка депозита, статусы авто, учёт пробега и топлива")
+    Container(worker, "Background Worker", "Python, Celery", "Фоновые задачи: истечение резерва, release / capture депозита, обработка телематики, рассылка уведомлений")
+
+    ContainerDb(db, "База данных", "PostgreSQL 16", "Пользователи, автомобили, тарифы, аренды, показания, депозиты, платежи, ТО, инциденты")
+    ContainerDb(cache, "Кэш и блокировки", "Redis 7", "GEO-индекс свободных авто, TTL-локи бронирования, сессии / refresh-токены, rate limiting")
+    ContainerQueue(mq, "Брокер сообщений", "RabbitMQ", "События: rental.ended, reservation.expired, telemetry.reading, notification.send")
+    ContainerDb(s3, "Файловое хранилище", "S3 / MinIO", "Сканы водительских удостоверений, фото повреждений")
+}
+
+System_Ext(payment, "Платёжный шлюз", "ЮKassa / Stripe: hold / capture / release депозита, списание оплаты")
+System_Ext(telematics, "Телематическая платформа", "Бортовые блоки авто: GPS, одометр, уровень топлива, lock / unlock")
+System_Ext(notify, "Сервис уведомлений", "Push (FCM / APNs), SMS")
+
+Rel(driver, mobile, "Использует", "HTTPS")
+Rel(operator, web, "Использует", "HTTPS")
+Rel(mobile, api, "Вызывает API", "HTTPS/JSON, JWT")
+Rel(web, api, "Вызывает API", "HTTPS/JSON, JWT")
+
+Rel(api, db, "Читает / пишет", "SQL, TCP 5432")
+Rel(api, cache, "Кэширует, ставит локи", "RESP, TCP 6379")
+Rel(api, mq, "Публикует события", "AMQP")
+Rel(api, s3, "Загружает / отдаёт файлы", "HTTPS, presigned URL")
+Rel(api, payment, "Блокирует депозит, списывает оплату", "HTTPS/REST")
+BiRel(api, telematics, "Команды lock / unlock; показания GPS, одометра, топлива (webhook)", "HTTPS/JSON")
+
+Rel(worker, mq, "Потребляет события", "AMQP")
+Rel(worker, db, "Читает / пишет", "SQL, TCP 5432")
+Rel(worker, cache, "Обновляет GEO-индекс, снимает локи", "RESP")
+Rel(worker, payment, "Release / capture депозита", "HTTPS/REST")
+Rel(worker, notify, "Отправляет уведомления", "HTTPS/REST")
+
+SHOW_LEGEND()
+@enduml

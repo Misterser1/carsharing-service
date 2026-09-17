@@ -1,0 +1,66 @@
+@startuml use-cases
+' Диаграмма вариантов использования
+' Сервис аренды автомобилей (Carsharing / Rental API), вариант 5
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F9FF
+  BorderColor #3C6E9E
+}
+title Варианты использования — Сервис аренды автомобилей
+
+actor "Водитель" as driver
+actor "Оператор\nавтопарка" as operator
+actor "Платёжный\nшлюз" as payment <<external>>
+actor "Телематика" as telematics <<external>>
+
+rectangle "Carsharing Platform" {
+  package "Сценарии водителя" {
+    usecase "UC-D1 Регистрация и\nзагрузка водительского\nудостоверения" as D1
+    usecase "UC-D2 Поиск свободных авто\nна карте / по фильтрам" as D2
+    usecase "UC-D3 Бронирование авто\n(резерв на 20 минут)" as D3
+    usecase "UC-D4 Начало аренды:\nразблокировка, фиксация\nпробега и топлива" as D4
+    usecase "UC-D5 Завершение аренды:\nвозврат, расчёт стоимости" as D5
+    usecase "UC-D6 Отмена бронирования" as D6
+    usecase "UC-D7 История поездок\nи платежей" as D7
+    usecase "UC-D8 Сообщение\nо повреждении / инциденте" as D8
+  }
+  package "Сценарии оператора" {
+    usecase "UC-O1 Управление автопарком:\nдобавить / изменить / списать авто" as O1
+    usecase "UC-O2 Изменение статуса авто\n(доступен / на ТО / выведен)" as O2
+    usecase "UC-O3 Управление тарифами\nи размером депозита" as O3
+    usecase "UC-O4 Верификация\nводительских удостоверений" as O4
+    usecase "UC-O5 Регистрация ТО,\nзаправки, ремонта" as O5
+    usecase "UC-O6 Разбор инцидентов:\nштраф, удержание депозита" as O6
+    usecase "UC-O7 Мониторинг аренд,\nпробега и уровня топлива" as O7
+    usecase "UC-O8 Аналитика: загрузка\nавтопарка, выручка" as O8
+  }
+}
+
+driver --> D1
+driver --> D2
+driver --> D3
+driver --> D4
+driver --> D5
+driver --> D6
+driver --> D7
+driver --> D8
+
+operator --> O1
+operator --> O2
+operator --> O3
+operator --> O4
+operator --> O5
+operator --> O6
+operator --> O7
+operator --> O8
+
+D3 ..> payment : <<include>>\nhold депозита
+D5 ..> payment : <<include>>\nоплата, release депозита
+D6 ..> payment : <<include>>\nrelease депозита
+O6 ..> payment : <<include>>\ncapture депозита
+D4 ..> telematics : <<include>>\nunlock, показания
+D5 ..> telematics : <<include>>\nlock, показания
+O7 ..> telematics : <<include>>\nтекущие показания
+@enduml

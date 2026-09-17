@@ -1,0 +1,11 @@
+%% Статусы аренды (rentals.status) и связанного депозита (deposit_holds.status)
+stateDiagram-v2
+    direction LR
+    [*] --> RESERVED : POST /rentals — депозит HELD
+    RESERVED --> ACTIVE : POST /rentals/{id}/start
+    RESERVED --> CANCELLED : водитель отменил — депозит RELEASED
+    RESERVED --> EXPIRED : таймер 20 мин (worker) — депозит RELEASED
+    ACTIVE --> COMPLETED : POST /rentals/{id}/finish — оплата, депозит RELEASED (или CAPTURED при инциденте)
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]

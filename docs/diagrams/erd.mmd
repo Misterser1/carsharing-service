@@ -1,0 +1,197 @@
+%% ER-диаграмма базы данных (3NF)
+%% Сервис аренды автомобилей (Carsharing / Rental API), вариант 5
+%% Рендерится нативно на GitHub и через Kroki / mermaid.live
+erDiagram
+    users ||--o| driver_profiles : "имеет профиль водителя"
+    users ||--o{ rentals : "арендует"
+    users ||--o{ maintenance_records : "регистрирует ТО"
+    users ||--o{ incidents : "сообщает"
+
+    vehicle_classes ||--o{ vehicle_models : "объединяет"
+    vehicle_classes ||--o{ tariffs : "тарифицируется"
+    vehicle_models ||--o{ vehicles : "экземпляры"
+    locations ||--o{ vehicles : "припаркован на"
+    locations ||--o{ rentals : "старт / финиш"
+
+    vehicles ||--o{ rentals : "сдаётся в аренду"
+    vehicles ||--o{ vehicle_readings : "показания"
+    vehicles ||--o{ maintenance_records : "обслуживается"
+    vehicles ||--o{ vehicle_features : "оснащён"
+    features ||--o{ vehicle_features : "входит в"
+
+    tariffs ||--o{ rentals : "применяется к"
+    rentals ||--o| deposit_holds : "блокирует депозит"
+    rentals ||--o{ payments : "оплачивается"
+    rentals ||--o{ vehicle_readings : "фиксирует"
+    rentals ||--o{ incidents : "инциденты"
+
+    users {
+        uuid id PK
+        varchar email UK "NOT NULL"
+        varchar phone UK "NOT NULL"
+        varchar password_hash "NOT NULL"
+        varchar full_name "NOT NULL"
+        user_role role "DRIVER | OPERATOR | ADMIN"
+        user_status status "ACTIVE | BLOCKED"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    driver_profiles {
+        uuid user_id PK, FK "users.id (1:1)"
+        date birth_date "NOT NULL"
+        varchar license_number UK "NOT NULL"
+        date license_issued_at "NOT NULL"
+        date license_expires_at "CHECK > issued_at"
+        license_status license_status "PENDING | VERIFIED | REJECTED"
+        varchar license_scan_key "ключ файла в S3"
+        uuid verified_by FK "users.id (оператор)"
+        timestamptz verified_at
+    }
+
+    vehicle_classes {
+        smallint id PK
+        varchar code UK "ECONOMY | COMFORT | BUSINESS | SUV"
+        varchar name "NOT NULL"
+    }
+
+    vehicle_models {
+        int id PK
+        smallint class_id FK "vehicle_classes.id"
+        varchar brand "NOT NULL"
+        varchar model "NOT NULL, UNIQUE(brand, model)"
+        smallint seats "CHECK 1..9"
+        transmission transmission "MANUAL | AUTOMATIC"
+        fuel_type fuel_type "PETROL | DIESEL | ELECTRIC | HYBRID"
+        numeric tank_capacity_l "CHECK > 0"
+    }
+
+    locations {
+        int id PK
+        varchar name "NOT NULL"
+        varchar address "NOT NULL"
+        numeric latitude "CHECK -90..90"
+        numeric longitude "CHECK -180..180"
+        smallint capacity "CHECK > 0"
+        boolean is_active "DEFAULT true"
+    }
+
+    vehicles {
+        uuid id PK
+        int model_id FK "vehicle_models.id"
+        int location_id FK "locations.id, NULL в поездке"
+        varchar plate_number UK "госномер"
+        char vin UK "17 символов"
+        smallint year "CHECK 2000..2100"
+        varchar color "NOT NULL"
+        vehicle_status status "AVAILABLE | RESERVED | RENTED | MAINTENANCE | DECOMMISSIONED"
+        int odometer_km "текущий пробег, CHECK >= 0"
+        smallint fuel_level_pct "текущее топливо, CHECK 0..100"
+        numeric latitude
+        numeric longitude
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    features {
+        smallint id PK
+        varchar code UK "CHILD_SEAT | GPS | WINTER_TIRES ..."
+        varchar name "NOT NULL"
+    }
+
+    vehicle_features {
+        uuid vehicle_id PK, FK "vehicles.id"
+        smallint feature_id PK, FK "features.id"
+    }
+
+    tariffs {
+        int id PK
+        smallint class_id FK "vehicle_classes.id"
+        varchar name "NOT NULL"
+        numeric price_per_minute "CHECK >= 0"
+        numeric price_per_km "CHECK >= 0"
+        numeric price_per_day "CHECK >= 0"
+        numeric deposit_amount "CHECK >= 0"
+        char currency "ISO 4217, DEFAULT RUB"
+        timestamptz valid_from "NOT NULL"
+        timestamptz valid_to "NULL = бессрочно"
+        boolean is_active "DEFAULT true"
+    }
+
+    rentals {
+        uuid id PK
+        uuid driver_id FK "users.id"
+        uuid vehicle_id FK "vehicles.id"
+        int tariff_id FK "tariffs.id (снимок тарифа)"
+        int start_location_id FK "locations.id"
+        int end_location_id FK "locations.id"
+        rental_status status "RESERVED | ACTIVE | COMPLETED | CANCELLED | EXPIRED"
+        timestamptz reserved_at "NOT NULL"
+        timestamptz reservation_expires_at "NOT NULL"
+        timestamptz started_at
+        timestamptz ended_at "CHECK >= started_at"
+        int start_odometer_km "CHECK >= 0"
+        int end_odometer_km "CHECK >= start_odometer_km"
+        smallint start_fuel_pct "CHECK 0..100"
+        smallint end_fuel_pct "CHECK 0..100"
+        numeric total_amount "итог, фиксируется при завершении"
+    }
+
+    vehicle_readings {
+        bigint id PK
+        uuid vehicle_id FK "vehicles.id"
+        uuid rental_id FK "rentals.id, NULL вне аренды"
+        reading_source source "TELEMATICS | RENTAL_START | RENTAL_END | MANUAL"
+        int odometer_km "CHECK >= 0"
+        smallint fuel_level_pct "CHECK 0..100"
+        numeric latitude
+        numeric longitude
+        timestamptz recorded_at "NOT NULL"
+    }
+
+    deposit_holds {
+        uuid id PK
+        uuid rental_id UK, FK "rentals.id (1:1)"
+        numeric amount "CHECK > 0"
+        char currency "ISO 4217"
+        deposit_status status "HELD | RELEASED | CAPTURED | PARTIALLY_CAPTURED | FAILED"
+        numeric captured_amount "CHECK 0..amount"
+        varchar provider_hold_id UK "id операции в платёжном шлюзе"
+        timestamptz held_at "NOT NULL"
+        timestamptz released_at
+    }
+
+    payments {
+        uuid id PK
+        uuid rental_id FK "rentals.id"
+        payment_type type "RENTAL_CHARGE | FINE | DEPOSIT_CAPTURE | REFUND"
+        payment_status status "PENDING | SUCCEEDED | FAILED | REFUNDED"
+        numeric amount "CHECK > 0"
+        char currency "ISO 4217"
+        varchar provider_transaction_id UK
+        timestamptz created_at "NOT NULL"
+    }
+
+    maintenance_records {
+        bigint id PK
+        uuid vehicle_id FK "vehicles.id"
+        uuid operator_id FK "users.id"
+        maintenance_type type "SERVICE | REPAIR | REFUEL | CLEANING | INSPECTION"
+        text description
+        numeric cost "CHECK >= 0"
+        int odometer_km "пробег на момент ТО"
+        timestamptz started_at "NOT NULL"
+        timestamptz finished_at "CHECK >= started_at"
+    }
+
+    incidents {
+        uuid id PK
+        uuid rental_id FK "rentals.id"
+        uuid reported_by FK "users.id"
+        uuid resolved_by FK "users.id (оператор)"
+        incident_status status "OPEN | UNDER_REVIEW | RESOLVED | REJECTED"
+        text description "NOT NULL"
+        numeric fine_amount "CHECK >= 0"
+        timestamptz created_at "NOT NULL"
+        timestamptz resolved_at
+    }

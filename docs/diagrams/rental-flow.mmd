@@ -1,0 +1,58 @@
+%% Ключевой сценарий: жизненный цикл аренды с блокировкой депозита
+%% Сервис аренды автомобилей (Carsharing / Rental API), вариант 5
+sequenceDiagram
+    autonumber
+    actor D as Водитель
+    participant M as Mobile App
+    participant API as Backend API
+    participant R as Redis
+    participant DB as PostgreSQL
+    participant P as Платёжный шлюз
+    participant T as Телематика
+    participant MQ as RabbitMQ
+    participant W as Worker
+
+    rect rgb(235, 245, 255)
+    note over D,W: 1. Бронирование (RESERVED) + блокировка депозита
+    D->>M: Выбрать авто, «Забронировать»
+    M->>API: POST /rentals {vehicle_id}
+    API->>R: SET lock:vehicle:{id} NX EX 1200
+    alt лок не получен
+        API-->>M: 409 Conflict — авто уже занято
+    else лок получен
+        API->>DB: INSERT rentals(status=RESERVED), UPDATE vehicles SET status=RESERVED
+        API->>P: hold(deposit_amount)
+        P-->>API: provider_hold_id
+        API->>DB: INSERT deposit_holds(status=HELD)
+        API-->>M: 201 Created {status: RESERVED, expires_at}
+    end
+    end
+
+    rect rgb(235, 255, 240)
+    note over D,W: 2. Начало аренды (ACTIVE) — фиксация пробега и топлива
+    D->>M: «Начать поездку»
+    M->>API: POST /rentals/{id}/start
+    API->>T: unlock(vehicle), get_readings()
+    T-->>API: odometer_km, fuel_level_pct, gps
+    API->>DB: UPDATE rentals SET status=ACTIVE, started_at, start_odometer_km, start_fuel_pct
+    API->>DB: UPDATE vehicles SET status=RENTED, location_id=NULL, INSERT vehicle_readings(RENTAL_START)
+    API-->>M: 200 OK {status: ACTIVE}
+    end
+
+    rect rgb(255, 245, 230)
+    note over D,W: 3. Завершение аренды (COMPLETED) — расчёт стоимости, оплата, release депозита
+    D->>M: «Завершить поездку» (на разрешённой парковке)
+    M->>API: POST /rentals/{id}/finish
+    API->>T: get_readings(), lock(vehicle)
+    T-->>API: odometer_km, fuel_level_pct, gps
+    API->>DB: UPDATE rentals SET status=COMPLETED, end_*, total_amount = f(время, км, тариф)
+    API->>DB: UPDATE vehicles SET status=AVAILABLE, odometer_km, fuel_level_pct, location_id, INSERT vehicle_readings(RENTAL_END)
+    API->>MQ: publish rental.ended {rental_id}
+    API-->>M: 200 OK {total_amount}
+    MQ->>W: consume rental.ended
+    W->>P: charge(total_amount), release(provider_hold_id)
+    P-->>W: OK
+    W->>DB: INSERT payments(SUCCEEDED), UPDATE deposit_holds SET status=RELEASED
+    W->>R: DEL lock:vehicle:{id}, GEOADD available_vehicles
+    W-->>D: Push «Поездка завершена, списано N ₽, депозит разблокирован»
+    end
