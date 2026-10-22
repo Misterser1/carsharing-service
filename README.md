@@ -12,7 +12,8 @@
 | № | Лабораторная работа | Статус | Результат |
 |---|---|---|---|
 | 1 | Проектирование архитектуры серверного приложения и предметной области | ✅ выполнена | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| 2+ | Реализация API, БД, аутентификации и т. д. | ⏳ | — |
+| 2 | Проектирование REST API и спецификация OpenAPI 3.0 | ✅ выполнена | [openapi.yaml](openapi.yaml), раздел [REST API Specs](ARCHITECTURE.md#4-rest-api-specs-openapi) |
+| 3+ | Реализация API, БД, аутентификации и т. д. | ⏳ | — |
 
 ## Структура репозитория
 
@@ -20,6 +21,7 @@
 .
 ├── README.md                 # описание репозитория (этот файл)
 ├── ARCHITECTURE.md           # архитектурный отчёт: роли, use cases, C4, ERD, 3NF, контрольные вопросы
+├── openapi.yaml              # контракт REST API по OpenAPI 3.0 (ЛР2)
 ├── db/
 │   └── schema.sql            # DDL PostgreSQL 16: таблицы, ENUM, PK/FK, CHECK, UNIQUE, индексы
 └── docs/

@@ -1,0 +1,1172 @@
+openapi: 3.0.3
+info:
+  title: Carsharing / Rental API
+  description: REST API сервиса краткосрочной аренды автомобилей.
+  version: 1.0.0
+  contact:
+    name: Carsharing API team
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth
+  - name: Profile
+  - name: Vehicles
+  - name: Rentals
+  - name: Tariffs
+  - name: Incidents
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Проверка доступности сервиса
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Сервис доступен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Сервис или зависимость недоступны
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация водителя
+      operationId: registerDriver
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email или телефон уже зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход в систему
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Токены выданы
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление access-токена
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Новый access-токен выдан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/me:
+    get:
+      tags: [Profile]
+      summary: Получить профиль текущего пользователя
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/driver-profile:
+    get:
+      tags: [Profile]
+      summary: Получить профиль водителя
+      operationId: getDriverProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Данные водительского удостоверения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Profile]
+      summary: Создать или обновить данные водительского удостоверения
+      operationId: upsertDriverProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverProfileRequest'
+      responses:
+        '200':
+          description: Профиль обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Номер удостоверения уже используется
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/vehicles:
+    get:
+      tags: [Vehicles]
+      summary: Получить список доступных автомобилей
+      operationId: listVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/VehicleStatus'
+        - in: query
+          name: class_code
+          schema:
+            type: string
+        - in: query
+          name: location_id
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список автомобилей
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Vehicles]
+      summary: Добавить автомобиль в автопарк
+      operationId: createVehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleCreateRequest'
+      responses:
+        '201':
+          description: Автомобиль создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Госномер или VIN уже зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/vehicles/{vehicleId}:
+    parameters:
+      - $ref: '#/components/parameters/VehicleId'
+    get:
+      tags: [Vehicles]
+      summary: Получить автомобиль
+      operationId: getVehicle
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Автомобиль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Vehicles]
+      summary: Изменить автомобиль или его статус
+      operationId: updateVehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleUpdateRequest'
+      responses:
+        '200':
+          description: Автомобиль обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Vehicles]
+      summary: Списать автомобиль
+      operationId: decommissionVehicle
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Автомобиль списан
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/rentals:
+    get:
+      tags: [Rentals]
+      summary: Получить аренды текущего пользователя
+      operationId: listRentals
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/RentalStatus'
+      responses:
+        '200':
+          description: Список аренд
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RentalListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Rentals]
+      summary: Забронировать автомобиль
+      operationId: createRental
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentalCreateRequest'
+      responses:
+        '201':
+          description: Автомобиль забронирован, депозит заблокирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Автомобиль занят или у водителя уже есть открытая аренда
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/rentals/{rentalId}:
+    parameters:
+      - $ref: '#/components/parameters/RentalId'
+    get:
+      tags: [Rentals]
+      summary: Получить аренду
+      operationId: getRental
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Аренда и депозит
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/rentals/{rentalId}/start:
+    post:
+      tags: [Rentals]
+      summary: Начать поездку
+      operationId: startRental
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RentalId'
+      responses:
+        '200':
+          description: Аренда начата
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/rentals/{rentalId}/finish:
+    post:
+      tags: [Rentals]
+      summary: Завершить поездку
+      operationId: finishRental
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RentalId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentalFinishRequest'
+      responses:
+        '200':
+          description: Поездка завершена, стоимость рассчитана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/rentals/{rentalId}/cancel:
+    post:
+      tags: [Rentals]
+      summary: Отменить бронирование
+      operationId: cancelRental
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RentalId'
+      responses:
+        '200':
+          description: Бронирование отменено, депозит освобождён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/tariffs:
+    get:
+      tags: [Tariffs]
+      summary: Получить действующие тарифы
+      operationId: listTariffs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список тарифов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tariff'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Tariffs]
+      summary: Создать тариф
+      operationId: createTariff
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TariffRequest'
+      responses:
+        '201':
+          description: Тариф создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tariff'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/incidents:
+    get:
+      tags: [Incidents]
+      summary: Получить инциденты пользователя
+      operationId: listIncidents
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/IncidentStatus'
+      responses:
+        '200':
+          description: Список инцидентов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Incident'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Incidents]
+      summary: Сообщить об инциденте
+      operationId: createIncident
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentCreateRequest'
+      responses:
+        '201':
+          description: Инцидент зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/incidents/{incidentId}:
+    parameters:
+      - $ref: '#/components/parameters/IncidentId'
+    get:
+      tags: [Incidents]
+      summary: Получить инцидент
+      operationId: getIncident
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Инцидент
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Incidents]
+      summary: Рассмотреть инцидент
+      operationId: resolveIncident
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentResolveRequest'
+      responses:
+        '200':
+          description: Инцидент обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    VehicleId:
+      name: vehicleId
+      in: path
+      required: true
+      description: UUID автомобиля
+      schema:
+        type: string
+        format: uuid
+    RentalId:
+      name: rentalId
+      in: path
+      required: true
+      description: UUID аренды
+      schema:
+        type: string
+        format: uuid
+    IncidentId:
+      name: incidentId
+      in: path
+      required: true
+      description: UUID инцидента
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      description: Номер страницы
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      description: Размер страницы
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    BadRequest:
+      description: Ошибка валидации запроса
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Требуется аутентификация
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Недостаточно прав
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Конфликт состояния ресурса
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message, request_id]
+      properties:
+        code:
+          type: string
+          example: RENTAL_CONFLICT
+        message:
+          type: string
+          example: Автомобиль уже забронирован
+        details:
+          type: object
+          additionalProperties: true
+        request_id:
+          type: string
+          format: uuid
+    HealthResponse:
+      type: object
+      required: [service, version, status, uptime_seconds]
+      properties:
+        service:
+          type: string
+          example: carsharing-api
+        version:
+          type: string
+          example: 1.0.0
+        status:
+          type: string
+          enum: [ok]
+        uptime_seconds:
+          type: integer
+          format: int64
+          minimum: 0
+    RegisterRequest:
+      type: object
+      required: [email, phone, password, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        phone:
+          type: string
+          maxLength: 20
+          example: '+79991234567'
+        password:
+          type: string
+          format: password
+          minLength: 8
+        full_name:
+          type: string
+          maxLength: 150
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Срок действия access-токена в секундах
+    AuthResponse:
+      allOf:
+        - $ref: '#/components/schemas/TokenResponse'
+        - type: object
+          required: [refresh_token, user]
+          properties:
+            refresh_token:
+              type: string
+            user:
+              $ref: '#/components/schemas/User'
+    User:
+      type: object
+      required: [id, email, phone, full_name, role, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [DRIVER, OPERATOR, ADMIN]
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED]
+        created_at:
+          type: string
+          format: date-time
+    DriverProfileRequest:
+      type: object
+      required: [birth_date, license_number, license_issued_at, license_expires_at]
+      properties:
+        birth_date:
+          type: string
+          format: date
+        license_number:
+          type: string
+          maxLength: 20
+        license_issued_at:
+          type: string
+          format: date
+        license_expires_at:
+          type: string
+          format: date
+        license_scan_key:
+          type: string
+          maxLength: 255
+    DriverProfile:
+      allOf:
+        - $ref: '#/components/schemas/DriverProfileRequest'
+        - type: object
+          required: [license_status]
+          properties:
+            license_status:
+              $ref: '#/components/schemas/LicenseStatus'
+            verified_by:
+              type: string
+              format: uuid
+              nullable: true
+            verified_at:
+              type: string
+              format: date-time
+              nullable: true
+    VehicleStatus:
+      type: string
+      enum: [AVAILABLE, RESERVED, RENTED, MAINTENANCE, DECOMMISSIONED]
+    VehicleCreateRequest:
+      type: object
+      required: [model_id, plate_number, vin, year, color]
+      properties:
+        model_id:
+          type: integer
+        location_id:
+          type: integer
+          nullable: true
+        plate_number:
+          type: string
+          maxLength: 12
+          example: A123BC777
+        vin:
+          type: string
+          minLength: 17
+          maxLength: 17
+        year:
+          type: integer
+          minimum: 2000
+        color:
+          type: string
+          maxLength: 30
+        feature_ids:
+          type: array
+          items:
+            type: integer
+    VehicleUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        location_id:
+          type: integer
+          nullable: true
+        color:
+          type: string
+          maxLength: 30
+        status:
+          $ref: '#/components/schemas/VehicleStatus'
+        odometer_km:
+          type: integer
+          minimum: 0
+        fuel_level_pct:
+          type: integer
+          minimum: 0
+          maximum: 100
+    VehicleModel:
+      type: object
+      required: [id, brand, model, seats, transmission, fuel_type]
+      properties:
+        id:
+          type: integer
+        brand:
+          type: string
+        model:
+          type: string
+        seats:
+          type: integer
+        transmission:
+          type: string
+          enum: [MANUAL, AUTOMATIC]
+        fuel_type:
+          type: string
+          enum: [PETROL, DIESEL, ELECTRIC, HYBRID]
+    Vehicle:
+      allOf:
+        - $ref: '#/components/schemas/VehicleCreateRequest'
+        - type: object
+          required: [id, status, odometer_km, fuel_level_pct, created_at, updated_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/VehicleStatus'
+            odometer_km:
+              type: integer
+            fuel_level_pct:
+              type: integer
+            latitude:
+              type: number
+              format: double
+              nullable: true
+            longitude:
+              type: number
+              format: double
+              nullable: true
+            model:
+              $ref: '#/components/schemas/VehicleModel'
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+    VehicleListResponse:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vehicle'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+    RentalStatus:
+      type: string
+      enum: [RESERVED, ACTIVE, COMPLETED, CANCELLED, EXPIRED]
+    RentalCreateRequest:
+      type: object
+      required: [vehicle_id, tariff_id, start_location_id]
+      properties:
+        vehicle_id:
+          type: string
+          format: uuid
+        tariff_id:
+          type: integer
+        start_location_id:
+          type: integer
+        reservation_minutes:
+          type: integer
+          minimum: 1
+          maximum: 60
+          default: 20
+    RentalFinishRequest:
+      type: object
+      required: [end_location_id, end_odometer_km, end_fuel_pct]
+      properties:
+        end_location_id:
+          type: integer
+        end_odometer_km:
+          type: integer
+          minimum: 0
+        end_fuel_pct:
+          type: integer
+          minimum: 0
+          maximum: 100
+    DepositHold:
+      type: object
+      required: [id, amount, currency, status, captured_amount, held_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        status:
+          type: string
+          enum: [HELD, RELEASED, CAPTURED, PARTIALLY_CAPTURED, FAILED]
+        captured_amount:
+          type: number
+          format: double
+        held_at:
+          type: string
+          format: date-time
+        released_at:
+          type: string
+          format: date-time
+          nullable: true
+    Rental:
+      type: object
+      required: [id, driver_id, vehicle_id, tariff_id, status, reserved_at, reservation_expires_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        driver_id:
+          type: string
+          format: uuid
+        vehicle_id:
+          type: string
+          format: uuid
+        tariff_id:
+          type: integer
+        start_location_id:
+          type: integer
+          nullable: true
+        end_location_id:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/RentalStatus'
+        reserved_at:
+          type: string
+          format: date-time
+        reservation_expires_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        start_odometer_km:
+          type: integer
+          nullable: true
+        end_odometer_km:
+          type: integer
+          nullable: true
+        start_fuel_pct:
+          type: integer
+          nullable: true
+        end_fuel_pct:
+          type: integer
+          nullable: true
+        total_amount:
+          type: number
+          format: double
+          nullable: true
+        deposit:
+          $ref: '#/components/schemas/DepositHold'
+    RentalListResponse:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rental'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+    TariffRequest:
+      type: object
+      required: [class_id, name, price_per_minute, price_per_km, price_per_day, deposit_amount]
+      properties:
+        class_id:
+          type: integer
+        name:
+          type: string
+          maxLength: 100
+        price_per_minute:
+          type: number
+          format: double
+          minimum: 0
+        price_per_km:
+          type: number
+          format: double
+          minimum: 0
+        price_per_day:
+          type: number
+          format: double
+          minimum: 0
+        deposit_amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          default: RUB
+        valid_from:
+          type: string
+          format: date-time
+        valid_to:
+          type: string
+          format: date-time
+          nullable: true
+    Tariff:
+      allOf:
+        - $ref: '#/components/schemas/TariffRequest'
+        - type: object
+          required: [id, is_active]
+          properties:
+            id:
+              type: integer
+            is_active:
+              type: boolean
+    LicenseStatus:
+      type: string
+      enum: [PENDING, VERIFIED, REJECTED]
+    IncidentStatus:
+      type: string
+      enum: [OPEN, UNDER_REVIEW, RESOLVED, REJECTED]
+    IncidentCreateRequest:
+      type: object
+      required: [rental_id, description]
+      properties:
+        rental_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+          minLength: 1
+          maxLength: 5000
+    IncidentResolveRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [RESOLVED, REJECTED]
+        fine_amount:
+          type: number
+          format: double
+          minimum: 0
+          nullable: true
+    Incident:
+      allOf:
+        - $ref: '#/components/schemas/IncidentCreateRequest'
+        - type: object
+          required: [id, reported_by, status, created_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            reported_by:
+              type: string
+              format: uuid
+            resolved_by:
+              type: string
+              format: uuid
+              nullable: true
+            status:
+              $ref: '#/components/schemas/IncidentStatus'
+            fine_amount:
+              type: number
+              format: double
+              nullable: true
+            created_at:
+              type: string
+              format: date-time
+            resolved_at:
+              type: string
+              format: date-time
+              nullable: true
