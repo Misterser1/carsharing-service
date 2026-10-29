@@ -39,6 +39,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/health:
+    get:
+      tags: [Health]
+      summary: Проверка доступности сервиса (под префиксом API)
+      operationId: getApiHealth
+      security: []
+      responses:
+        '200':
+          description: Сервис доступен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Сервис или зависимость недоступны
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/auth/register:
     post:
       tags: [Auth]
@@ -694,17 +714,20 @@ components:
           format: uuid
     HealthResponse:
       type: object
-      required: [service, version, status, uptime_seconds]
+      required: [status, app_name, version, environment, uptime_seconds]
       properties:
-        service:
+        status:
           type: string
-          example: carsharing-api
+          enum: [pass]
+        app_name:
+          type: string
+          example: Carsharing Rental API
         version:
           type: string
           example: 1.0.0
-        status:
+        environment:
           type: string
-          enum: [ok]
+          enum: [development, test, production]
         uptime_seconds:
           type: integer
           format: int64

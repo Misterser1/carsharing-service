@@ -1,3 +1,25 @@
+# Environment configuration (секреты и локальные настройки; в Git только .env.example)
+.env
+.env.local
+
+# Dependencies & build outputs
+node_modules/
+dist/
+build/
+bin/
+*.exe
+*.bin
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # IDE / OS
 .idea/
 .vscode/
@@ -6,13 +28,3 @@ Thumbs.db
 
 # Playwright MCP artefacts (не часть проекта)
 .playwright-mcp/
-
-# Python (для будущих лабораторных)
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.env
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
