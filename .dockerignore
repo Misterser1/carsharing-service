@@ -44,6 +44,8 @@ docs/
 db/
 *.pdf
 
-# Сами файлы Docker
+# Сами файлы Docker и миграции (их применяет отдельный контейнер migrate)
 Dockerfile
 .dockerignore
+docker-compose.yml
+migrations/

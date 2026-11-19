@@ -8,7 +8,7 @@ info:
 servers:
   - url: https://api.example.com
     description: Production
-  - url: http://localhost:8000
+  - url: http://localhost:8080
     description: Local development
 tags:
   - name: Health
@@ -27,17 +27,17 @@ paths:
       security: []
       responses:
         '200':
-          description: Сервис доступен
+          description: Сервис и PostgreSQL доступны
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
         '503':
-          description: Сервис или зависимость недоступны
+          description: PostgreSQL недоступна (status = fail, db = down)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/HealthResponse'
 
   /api/v1/health:
     get:
@@ -47,17 +47,17 @@ paths:
       security: []
       responses:
         '200':
-          description: Сервис доступен
+          description: Сервис и PostgreSQL доступны
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
         '503':
-          description: Сервис или зависимость недоступны
+          description: PostgreSQL недоступна (status = fail, db = down)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/HealthResponse'
 
   /api/v1/auth/register:
     post:
@@ -714,11 +714,11 @@ components:
           format: uuid
     HealthResponse:
       type: object
-      required: [status, app_name, version, environment, uptime_seconds]
+      required: [status, app_name, version, environment, uptime_seconds, db]
       properties:
         status:
           type: string
-          enum: [pass]
+          enum: [pass, fail]
         app_name:
           type: string
           example: Carsharing Rental API
@@ -732,6 +732,10 @@ components:
           type: integer
           format: int64
           minimum: 0
+        db:
+          type: string
+          enum: [up, down]
+          description: Доступность PostgreSQL (проверка SELECT 1 через пул соединений)
     RegisterRequest:
       type: object
       required: [email, phone, password, full_name]

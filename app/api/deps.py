@@ -5,12 +5,17 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from app.core.config import Settings
+from app.core.database import Database
 from app.repositories.vehicle_repository import VehicleRepository
 from app.services.vehicle_service import VehicleService
 
 
 def get_settings(request: Request) -> Settings:
     return request.app.state.settings
+
+
+def get_database(request: Request) -> Database:
+    return request.app.state.database
 
 
 def get_vehicle_repository(request: Request) -> VehicleRepository:
@@ -24,4 +29,5 @@ def get_vehicle_service(
 
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+DatabaseDep = Annotated[Database, Depends(get_database)]
 VehicleServiceDep = Annotated[VehicleService, Depends(get_vehicle_service)]

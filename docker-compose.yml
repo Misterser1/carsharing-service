@@ -1,0 +1,76 @@
+# Инфраструктура проекта: PostgreSQL, миграции (golang-migrate) и приложение.
+# Значения ${...} Compose берёт из файла .env (шаблон — .env.example); паролей здесь нет.
+#
+#   docker compose up --build -d          # запуск всего окружения
+#   docker compose run --rm migrate down 1   # откат последней миграции
+#   docker compose run --rm migrate up       # повторное применение
+
+name: carsharing
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      # :? — Compose остановится с понятной ошибкой, если переменной нет в .env
+      POSTGRES_USER: ${DB_USER:?DB_USER is not set in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set in .env}
+      POSTGRES_DB: ${DB_NAME:?DB_NAME is not set in .env}
+    ports:
+      # только на localhost хост-машины: БД не должна быть доступна из сети
+      - "127.0.0.1:${DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # $$ — переменная раскрывается внутри контейнера; -h 127.0.0.1 — проверяем TCP:
+      # во время первой инициализации временный сервер слушает только unix-сокет
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    image: migrate/migrate:v4.18.1
+    volumes:
+      - ./migrations:/migrations:ro
+    # Путь и строка подключения — в entrypoint, действие — в command.
+    # `docker compose run migrate down 1` заменяет только command, строку подключения
+    # повторять не нужно.
+    entrypoint:
+      - migrate
+      - -path=/migrations
+      - -database=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?sslmode=disable
+    command: ["up"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      APP_NAME: ${APP_NAME:-Carsharing Rental API}
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      HTTP_PORT: 8080
+      # db — имя сервиса: внутри сети Compose его разрешает встроенный DNS Docker
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_MAX_CONNS: ${DB_MAX_CONNS:-10}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

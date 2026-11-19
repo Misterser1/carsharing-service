@@ -13,8 +13,9 @@ class ErrorResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     # pass / fail — как в формате Health Check Response (draft-inadarei-api-health-check)
-    status: Literal["pass"] = "pass"
+    status: Literal["pass", "fail"] = Field(examples=["pass"])
     app_name: str = Field(examples=["Carsharing Rental API"])
     version: str = Field(examples=["1.0.0"])
     environment: str = Field(examples=["development"])
     uptime_seconds: int = Field(ge=0)
+    db: Literal["up", "down"] = Field(examples=["up"])

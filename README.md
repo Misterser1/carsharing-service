@@ -15,7 +15,8 @@
 | 2 | Проектирование REST API и спецификация OpenAPI 3.0 | ✅ выполнена | [openapi.yaml](openapi.yaml), раздел [REST API Specs](ARCHITECTURE.md#4-rest-api-specs-openapi) |
 | 3 | Базовый каркас приложения, Clean / Layered Architecture, настройка окружения | ✅ выполнена | [Отчёт и ответы на вопросы](docs/lab3.md), [app/](app/), [tests/](tests/), [.env.example](.env.example) |
 | 4 | Контейнеризация приложения с Docker, оптимальный Dockerfile | ✅ выполнена | [Отчёт и ответы на вопросы](docs/lab4.md), [Dockerfile](Dockerfile), [.dockerignore](.dockerignore) |
-| 5+ | PostgreSQL и миграции, репозитории, аутентификация и т. д. | ⏳ | — |
+| 5 | Интеграция с PostgreSQL, миграции схемы БД, Docker Compose | ✅ выполнена | [Отчёт и ответы на вопросы](docs/lab5.md), [migrations/](migrations/), [docker-compose.yml](docker-compose.yml) |
+| 6+ | Репозитории на PostgreSQL, аутентификация и т. д. | ⏳ | — |
 
 ## Структура репозитория
 
@@ -26,6 +27,10 @@
 ├── openapi.yaml              # контракт REST API по OpenAPI 3.0 (ЛР2)
 ├── Dockerfile                # образ приложения: python:3.12-slim, многоэтапная сборка (ЛР4)
 ├── .dockerignore             # что не попадает в контекст сборки образа (ЛР4)
+├── docker-compose.yml        # db (PostgreSQL 16) + migrate (golang-migrate) + app (ЛР5)
+├── migrations/               # версионируемые SQL-миграции схемы БД (ЛР5)
+│   ├── 000001_init_schema.up.sql
+│   └── 000001_init_schema.down.sql
 ├── app/                      # серверное приложение (ЛР3)
 │   ├── main.py               # сборка FastAPI: настройки, middleware, обработчики ошибок, роутеры
 │   ├── __main__.py           # запуск через `python -m app`
@@ -35,17 +40,18 @@
 │   ├── repositories/         # доступ к данным: интерфейс + реализация в памяти
 │   ├── models/               # доменные сущности
 │   ├── schemas/              # Pydantic-схемы запросов и ответов
-│   └── core/                 # конфигурация (env), логирование, доменные исключения
-├── tests/                    # pytest: конфигурация, сервис, API
+│   └── core/                 # конфигурация (env), пул соединений с PostgreSQL, логирование, исключения
+├── tests/                    # pytest: конфигурация, подключение к БД, сервис, API
 ├── requirements.txt          # зависимости приложения
 ├── requirements-dev.txt      # + зависимости для тестов и линтера
 ├── pyproject.toml            # настройки pytest и ruff
 ├── .env.example              # пример переменных окружения (копируется в .env)
 ├── db/
-│   └── schema.sql            # DDL PostgreSQL 16: таблицы, ENUM, PK/FK, CHECK, UNIQUE, индексы
+│   └── schema.sql            # DDL из ЛР1 (снимок проектирования; актуальная схема — migrations/)
 └── docs/
     ├── lab3.md               # отчёт ЛР3: структура, окружение, демонстрация, контрольные вопросы
     ├── lab4.md               # отчёт ЛР4: Dockerfile, сборка и запуск контейнера, контрольные вопросы
+    ├── lab5.md               # отчёт ЛР5: миграции, Docker Compose, проверка, контрольные вопросы
     └── diagrams/
         ├── c4-context.puml   # C4 Level 1 — System Context (PlantUML + C4-PlantUML)
         ├── c4-container.puml # C4 Level 2 — Container
@@ -60,31 +66,41 @@
 
 ## Запуск приложения
 
-Нужен Python 3.12+.
+### Всё окружение в Docker Compose (основной способ)
+
+Нужны Docker Engine 24+ и плагин Docker Compose v2.
+
+```bash
+cp .env.example .env                 # задайте свой DB_PASSWORD (латинские буквы и цифры)
+docker compose up --build -d         # db → migrate (применяет миграции) → app
+docker compose ps -a                 # db: healthy, migrate: Exited (0), app: Up
+```
+
+- API: http://localhost:8080
+- Swagger UI: http://localhost:8080/docs (ReDoc — `/redoc`)
+- Проверка: `curl http://localhost:8080/api/v1/health` → `200`, `"db":"up"`; если остановить БД (`docker compose stop db`) → `503`, `"db":"down"`
+
+Миграции применяются автоматически при каждом `docker compose up`. Откат и повторное применение:
+
+```bash
+docker compose run --rm migrate down 1
+docker compose run --rm migrate up
+```
+
+`docker compose down` удаляет контейнеры, данные остаются в томе `pgdata`; `docker compose down -v` удаляет и том (полный сброс учебной БД).
+
+### Приложение на хост-машине (для разработки)
+
+Нужен Python 3.12+. База поднимается в Docker, приложение запускается локально с автоперезагрузкой:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 cp .env.example .env                 # Windows: copy .env.example .env
-python -m app
+docker compose up -d db migrate      # только БД и миграции
+python -m app                        # DB_HOST=localhost из .env
 ```
-
-- API: http://localhost:8000
-- Swagger UI: http://localhost:8000/docs (ReDoc — `/redoc`)
-- Проверка: `curl http://localhost:8000/api/v1/health`
-
-Запуск в Docker (нужен Docker Engine 24+):
-
-```bash
-docker build -t carsharing-api:latest .
-docker run --name backend-container -d -p 8080:8080 -e HTTP_PORT=8080 carsharing-api:latest
-curl http://localhost:8080/api/v1/health
-docker logs backend-container
-docker stop backend-container && docker rm backend-container
-```
-
-В образе по умолчанию `APP_ENV=production` (Swagger UI выключен) и `HTTP_PORT=8080`; любые настройки из таблицы ниже передаются через `-e`, например `-e APP_ENV=development`.
 
 Тесты и линтер:
 
@@ -93,7 +109,9 @@ pytest
 ruff check .
 ```
 
-Сейчас реализованы `GET /api/v1/health` (и `/health` без префикса) и управление автопарком `/api/v1/vehicles` (список с фильтрами и пагинацией, создание, получение, изменение, списание) — сквозной пример, проходящий через все слои. Данные хранятся в памяти и пропадают при перезапуске; PostgreSQL подключается в ЛР5–6, аутентификация по JWT — в следующих работах.
+Сейчас реализованы `GET /api/v1/health` (и `/health` без префикса) с проверкой доступности PostgreSQL и управление автопарком `/api/v1/vehicles` (список с фильтрами и пагинацией, создание, получение, изменение, списание) — сквозной пример, проходящий через все слои. Приложение подключается к PostgreSQL через пул соединений, но автопарк пока хранится в памяти: репозиторий на PostgreSQL — в ЛР6, аутентификация по JWT — в следующих работах.
+
+Приложение не стартует без обязательных переменных `DB_*` (пишет, каких не хватает) и без доступной БД (10 попыток подключения с растущей паузой).
 
 ### Слои и правило зависимостей
 
@@ -127,9 +145,17 @@ repositories/ хранение: сейчас InMemoryVehicleRepository, пото
 | `APP_DEBUG` | `false` | Режим отладки FastAPI |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `HTTP_HOST` | `0.0.0.0` | Адрес HTTP-сервера |
-| `HTTP_PORT` | `8000` | Порт HTTP-сервера (в Docker-образе — `8080`) |
-| `HTTP_RELOAD` | `false` | Автоперезагрузка при изменении кода (в `.env.example` включена для локальной разработки, в Docker выключена) |
+| `HTTP_PORT` | `8080` | Порт HTTP-сервера (в Docker Compose — порт на хост-машине) |
+| `HTTP_RELOAD` | `false` | Автоперезагрузка при изменении кода (в `.env.example` включена для локальной разработки) |
 | `CORS_ORIGINS` | — | Разрешённые источники для CORS через запятую |
+| `DB_HOST` | **обязательная** | Адрес PostgreSQL: `localhost` для запуска с хоста, `db` внутри Docker Compose |
+| `DB_PORT` | `5432` | Порт PostgreSQL |
+| `DB_USER` | **обязательная** | Пользователь БД |
+| `DB_PASSWORD` | **обязательная** | Пароль БД: только латинские буквы и цифры (подставляется в URL для migrate) |
+| `DB_NAME` | **обязательная** | Имя базы данных |
+| `DB_MAX_CONNS` | `10` | Максимальный размер пула соединений |
+| `DB_CONNECT_ATTEMPTS` | `10` | Число попыток подключения к БД при старте |
+| `DB_HOST_PORT` | `5432` | Только для Docker Compose: порт PostgreSQL на хост-машине |
 
 ## Ключевые архитектурные решения
 
@@ -154,11 +180,8 @@ bash docs/diagrams/render.sh                                     # Linux / macOS
 powershell -ExecutionPolicy Bypass -File docs\diagrams\render.ps1  # Windows PowerShell
 ```
 
-## Как применить схему БД
+## Схема БД и миграции
 
-```bash
-createdb carsharing
-psql -d carsharing -f db/schema.sql
-```
+Схема ведётся версионируемыми миграциями в [migrations/](migrations/) (формат [golang-migrate](https://github.com/golang-migrate/migrate)): `000001_init_schema` создаёт 13 ENUM-типов и 15 таблиц по ERD из ЛР1 с первичными и внешними ключами (правила `ON DELETE` выбраны явно и описаны в начале файла), `NOT NULL`, `UNIQUE`, `CHECK` и индексами на всех столбцах внешних ключей. Миграции применяет сервис `migrate` при `docker compose up`, номер применённой версии хранится в таблице `schema_migrations`.
 
-Схема создаёт расширение `pgcrypto` (для `gen_random_uuid()`), 13 ENUM-типов, 15 таблиц с ограничениями и 29 индексов, а также заполняет справочники классов автомобилей и опций.
+[db/schema.sql](db/schema.sql) — исходный DDL из ЛР1, оставлен как артефакт проектирования.

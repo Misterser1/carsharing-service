@@ -1,6 +1,9 @@
 from uuid import UUID, uuid4
 
 import pytest
+from fastapi.testclient import TestClient
+
+from app.main import create_app
 
 
 @pytest.mark.parametrize("path", ["/health", "/api/v1/health"])
@@ -15,7 +18,19 @@ def test_health(client, path):
     assert body["version"] == "1.0.0"
     assert body["environment"] == "test"
     assert body["uptime_seconds"] >= 0
+    assert body["db"] == "up"
     UUID(response.headers["X-Request-ID"])
+
+
+@pytest.mark.parametrize("path", ["/health", "/api/v1/health"])
+def test_health_is_503_when_db_is_down(client, database, path):
+    database.up = False
+
+    response = client.get(path)
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "fail"
+    assert response.json()["db"] == "down"
 
 
 def test_vehicle_crud(client, vehicle_payload):
@@ -95,12 +110,10 @@ def test_unknown_route_uses_error_response(client):
     assert response.json()["code"] == "NOT_FOUND"
 
 
-def test_docs_disabled_in_prod(settings):
-    from fastapi.testclient import TestClient
+def test_docs_disabled_in_prod(settings, database):
+    prod_settings = settings.model_copy(update={"app_env": "production"})
+    prod = TestClient(create_app(prod_settings, database=database))
 
-    from app.main import create_app
-
-    prod = TestClient(create_app(settings.model_copy(update={"app_env": "production"})))
     assert prod.get("/docs").status_code == 404
     assert prod.get("/", follow_redirects=False).headers["location"] == "/api/v1/health"
 
