@@ -14,7 +14,8 @@
 | 1 | Проектирование архитектуры серверного приложения и предметной области | ✅ выполнена | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | 2 | Проектирование REST API и спецификация OpenAPI 3.0 | ✅ выполнена | [openapi.yaml](openapi.yaml), раздел [REST API Specs](ARCHITECTURE.md#4-rest-api-specs-openapi) |
 | 3 | Базовый каркас приложения, Clean / Layered Architecture, настройка окружения | ✅ выполнена | [Отчёт и ответы на вопросы](docs/lab3.md), [app/](app/), [tests/](tests/), [.env.example](.env.example) |
-| 4+ | Docker, PostgreSQL и миграции, репозитории, аутентификация и т. д. | ⏳ | — |
+| 4 | Контейнеризация приложения с Docker, оптимальный Dockerfile | ✅ выполнена | [Отчёт и ответы на вопросы](docs/lab4.md), [Dockerfile](Dockerfile), [.dockerignore](.dockerignore) |
+| 5+ | PostgreSQL и миграции, репозитории, аутентификация и т. д. | ⏳ | — |
 
 ## Структура репозитория
 
@@ -23,6 +24,8 @@
 ├── README.md                 # описание репозитория (этот файл)
 ├── ARCHITECTURE.md           # архитектурный отчёт: роли, use cases, C4, ERD, 3NF, контрольные вопросы
 ├── openapi.yaml              # контракт REST API по OpenAPI 3.0 (ЛР2)
+├── Dockerfile                # образ приложения: python:3.12-slim, многоэтапная сборка (ЛР4)
+├── .dockerignore             # что не попадает в контекст сборки образа (ЛР4)
 ├── app/                      # серверное приложение (ЛР3)
 │   ├── main.py               # сборка FastAPI: настройки, middleware, обработчики ошибок, роутеры
 │   ├── __main__.py           # запуск через `python -m app`
@@ -42,6 +45,7 @@
 │   └── schema.sql            # DDL PostgreSQL 16: таблицы, ENUM, PK/FK, CHECK, UNIQUE, индексы
 └── docs/
     ├── lab3.md               # отчёт ЛР3: структура, окружение, демонстрация, контрольные вопросы
+    ├── lab4.md               # отчёт ЛР4: Dockerfile, сборка и запуск контейнера, контрольные вопросы
     └── diagrams/
         ├── c4-context.puml   # C4 Level 1 — System Context (PlantUML + C4-PlantUML)
         ├── c4-container.puml # C4 Level 2 — Container
@@ -69,6 +73,18 @@ python -m app
 - API: http://localhost:8000
 - Swagger UI: http://localhost:8000/docs (ReDoc — `/redoc`)
 - Проверка: `curl http://localhost:8000/api/v1/health`
+
+Запуск в Docker (нужен Docker Engine 24+):
+
+```bash
+docker build -t carsharing-api:latest .
+docker run --name backend-container -d -p 8080:8080 -e HTTP_PORT=8080 carsharing-api:latest
+curl http://localhost:8080/api/v1/health
+docker logs backend-container
+docker stop backend-container && docker rm backend-container
+```
+
+В образе по умолчанию `APP_ENV=production` (Swagger UI выключен) и `HTTP_PORT=8080`; любые настройки из таблицы ниже передаются через `-e`, например `-e APP_ENV=development`.
 
 Тесты и линтер:
 
@@ -106,12 +122,13 @@ repositories/ хранение: сейчас InMemoryVehicleRepository, пото
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `APP_NAME` | `Carsharing Rental API` | Название сервиса в `/api/v1/health` |
-| `APP_ENV` | `development` | Окружение: `development`, `test`, `production`. В `production` отключены `/docs`, `/redoc`, `/openapi.json`; в `development` включена автоперезагрузка |
+| `APP_ENV` | `development` | Окружение: `development`, `test`, `production`. В `production` отключены `/docs`, `/redoc`, `/openapi.json` |
 | `APP_VERSION` | `1.0.0` | Версия в `/api/v1/health` и в OpenAPI |
 | `APP_DEBUG` | `false` | Режим отладки FastAPI |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `HTTP_HOST` | `0.0.0.0` | Адрес HTTP-сервера |
-| `HTTP_PORT` | `8000` | Порт HTTP-сервера |
+| `HTTP_PORT` | `8000` | Порт HTTP-сервера (в Docker-образе — `8080`) |
+| `HTTP_RELOAD` | `false` | Автоперезагрузка при изменении кода (в `.env.example` включена для локальной разработки, в Docker выключена) |
 | `CORS_ORIGINS` | — | Разрешённые источники для CORS через запятую |
 
 ## Ключевые архитектурные решения

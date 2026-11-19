@@ -10,6 +10,6 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.http_host,
         port=settings.http_port,
-        reload=settings.app_env == "development",
+        reload=settings.http_reload,
         log_level=settings.log_level.lower(),
     )

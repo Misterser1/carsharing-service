@@ -102,3 +102,11 @@ def test_docs_disabled_in_prod(settings):
 
     prod = TestClient(create_app(settings.model_copy(update={"app_env": "production"})))
     assert prod.get("/docs").status_code == 404
+    assert prod.get("/", follow_redirects=False).headers["location"] == "/api/v1/health"
+
+
+def test_root_redirects_to_docs(client):
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/docs"

@@ -4,6 +4,7 @@ import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from app.api import health
 from app.api.errors import register_error_handlers
@@ -44,6 +45,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(api_router)
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        # Корень ведёт на документацию, а в production (где /docs выключен) — на health-check
+        return RedirectResponse("/docs" if settings.docs_enabled else "/api/v1/health")
+
     return app
 
 

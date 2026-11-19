@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     http_host: str = "0.0.0.0"
     http_port: int = 8000
+    http_reload: bool = False  # автоперезагрузка при правке кода — только для локальной разработки
 
     cors_origins: Annotated[list[str], NoDecode] = []
 

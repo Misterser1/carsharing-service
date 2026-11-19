@@ -1,0 +1,49 @@
+# Всё, что не нужно внутри образа: в контекст сборки попадают только app/ и requirements.txt.
+# Шаблоны считаются от корня проекта: **/ нужен, чтобы исключить и вложенные каталоги.
+
+# Git
+.git
+.gitignore
+
+# Секреты и локальные настройки (переменные передаются через docker run -e)
+.env
+.env.*
+
+# Зависимости, сборка, кэши
+node_modules/
+dist/
+build/
+bin/
+**/__pycache__/
+**/*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+**/.DS_Store
+**/Thumbs.db
+.playwright-mcp/
+
+# Тесты, инструменты разработки, логи
+tests/
+requirements-dev.txt
+pyproject.toml
+**/*.log
+logs/
+
+# Документация и материалы лабораторных
+README.md
+ARCHITECTURE.md
+openapi.yaml
+docs/
+db/
+*.pdf
+
+# Сами файлы Docker
+Dockerfile
+.dockerignore
